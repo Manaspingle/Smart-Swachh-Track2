@@ -1,57 +1,21 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { wasteEntriesTable } from "@workspace/db/schema";
-import { ClassifyWasteBody, VerifyWasteDisposalBody } from "@workspace/api-zod";
-import { desc } from "drizzle-orm";
+import { wasteEntriesTable, usersTable } from "@workspace/db/schema";
+import { ClassifyWasteBody, VerifyWasteDisposalBody, GetWasteHistoryQueryParams } from "@workspace/api-zod";
+import { desc, eq } from "drizzle-orm";
+import { checkFakeImageWithHf, classifyWasteWithHf } from "../services/hf";
 
 const router: IRouter = Router();
 
-const wasteCategories = [
-  {
-    category: "plastic",
-    items: ["Plastic Bottle", "Plastic Bag", "PET Container", "Plastic Cup", "Polythene Wrapper"],
-    binColor: "Blue",
-    disposalInstructions: "Rinse and crush before placing in the Blue Recycling Bin. Remove caps and labels if possible.",
-    tips: ["Rinse containers before recycling", "Crush bottles to save space", "Remove food residue", "Check the recycling number on the bottom"],
-  },
-  {
-    category: "organic",
-    items: ["Food Waste", "Vegetable Peels", "Fruit Scraps", "Cooked Food", "Tea/Coffee Grounds"],
-    binColor: "Green",
-    disposalInstructions: "Place in the Green Organic Waste Bin. Can be composted to create natural fertilizer.",
-    tips: ["Start home composting", "Avoid mixing with plastic", "Use as garden fertilizer", "Keep separate from dry waste"],
-  },
-  {
-    category: "metal",
-    items: ["Aluminum Can", "Steel Container", "Metal Bottle Cap", "Iron Scrap", "Copper Wire"],
-    binColor: "Grey",
-    disposalInstructions: "Clean and place in the Grey Metal Recycling Bin. Metal is 100% recyclable indefinitely.",
-    tips: ["Crush cans to save space", "Separate different metals", "Clean before disposing", "Check for sharp edges"],
-  },
-  {
-    category: "glass",
-    items: ["Glass Bottle", "Glass Jar", "Broken Glass", "Mirror", "Window Glass"],
-    binColor: "White",
-    disposalInstructions: "Wrap broken glass in newspaper before placing in White Glass Recycling Bin. Handle with care.",
-    tips: ["Wrap sharp edges safely", "Remove caps and lids", "Rinse containers", "Keep color-sorted if possible"],
-  },
-  {
-    category: "ewaste",
-    items: ["Mobile Phone", "Battery", "Laptop", "Charger", "Electronic Component"],
-    binColor: "Red",
-    disposalInstructions: "Take to designated E-Waste collection center. Do NOT put in regular bins. Contains hazardous materials.",
-    tips: ["Never put in regular trash", "Find authorized e-waste collectors", "Data wipe before disposing", "Check manufacturer take-back programs"],
-  },
-  {
-    category: "paper",
-    items: ["Newspaper", "Cardboard Box", "Paper Bag", "Office Paper", "Magazine"],
-    binColor: "Yellow",
-    disposalInstructions: "Keep dry and place in Yellow Paper Recycling Bin. Wet paper cannot be recycled.",
-    tips: ["Keep paper dry", "Remove staples and clips", "Flatten cardboard boxes", "Avoid shredded paper in bins"],
-  },
-];
-
 const classificationSessions: Record<string, { category: string; itemName: string }> = {};
+
+function resolveLevel(points: number): string {
+  if (points >= 2000) return "Zero Waste Warrior";
+  if (points >= 1000) return "Sustainability Hero";
+  if (points >= 500) return "Recycling Champion";
+  if (points >= 100) return "Green Citizen";
+  return "Eco Beginner";
+}
 
 router.post("/classify", (req, res) => {
   const parsed = ClassifyWasteBody.safeParse(req.body);
@@ -59,19 +23,49 @@ router.post("/classify", (req, res) => {
     res.status(400).json({ error: "validation_error", message: "Invalid request" });
     return;
   }
-  const wasteType = wasteCategories[Math.floor(Math.random() * wasteCategories.length)];
-  const itemName = wasteType.items[Math.floor(Math.random() * wasteType.items.length)];
-  const confidence = 0.75 + Math.random() * 0.22;
-  const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  classificationSessions[sessionId] = { category: wasteType.category, itemName };
-  res.json({
-    sessionId,
-    category: wasteType.category,
-    itemName,
-    confidence: Math.round(confidence * 100) / 100,
-    disposalInstructions: wasteType.disposalInstructions,
-    binColor: wasteType.binColor,
-    tips: wasteType.tips,
+  void (async () => {
+    const { imageBase64 } = parsed.data;
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+    // If HF is configured, use ML classification; otherwise fall back to a safe default.
+    let result:
+      | Awaited<ReturnType<typeof classifyWasteWithHf>>
+      | {
+          category: "other";
+          itemName: "Unknown Item";
+          confidence: 0.5;
+          disposalInstructions: string;
+          binColor: string;
+          tips: string[];
+        };
+
+    if (process.env["HF_API_TOKEN"]) {
+      result = await classifyWasteWithHf(imageBase64);
+    } else {
+      result = {
+        category: "other",
+        itemName: "Unknown Item",
+        confidence: 0.5,
+        disposalInstructions:
+          "Configure HF_API_TOKEN to enable ML classification. For now, treat this as general waste.",
+        binColor: "Black",
+        tips: ["Set HF_API_TOKEN on the backend to enable ML classification."],
+      };
+    }
+
+    classificationSessions[sessionId] = { category: result.category, itemName: result.itemName };
+    res.json({
+      sessionId,
+      category: result.category,
+      itemName: result.itemName,
+      confidence: result.confidence,
+      disposalInstructions: result.disposalInstructions,
+      binColor: result.binColor,
+      tips: result.tips,
+    });
+  })().catch((err: unknown) => {
+    console.error(err);
+    res.status(500).json({ error: "ml_error", message: "Failed to classify image" });
   });
 });
 
@@ -81,10 +75,40 @@ router.post("/verify", async (req, res) => {
     res.status(400).json({ error: "validation_error", message: "Invalid request" });
     return;
   }
-  const { sessionId, userId } = parsed.data;
+  const { sessionId, userId, imageBase64 } = parsed.data;
   const session = sessionId ? classificationSessions[sessionId] : null;
   const pointsAwarded = 10 + Math.floor(Math.random() * 20);
-  if (session && userId) {
+  let totalPoints = pointsAwarded;
+
+  // Fake/AI-generated image check (only enforced when HF is configured).
+  if (process.env["HF_API_TOKEN"]) {
+    try {
+      const fake = await checkFakeImageWithHf(imageBase64);
+      if (fake.isFakeLikely) {
+        res.status(400).json({
+          error: "fake_image_detected",
+          message: "Image appears to be AI-generated/tampered. Please upload a real photo.",
+        });
+        return;
+      }
+    } catch (err) {
+      // If detection fails, do not block user; still allow verification.
+      console.warn("Fake-image check failed:", err);
+    }
+  }
+
+  if (userId) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (user) {
+      totalPoints = user.greenPoints + pointsAwarded;
+      await db
+        .update(usersTable)
+        .set({ greenPoints: totalPoints, level: resolveLevel(totalPoints) })
+        .where(eq(usersTable.id, userId));
+    }
+  }
+
+  if (session) {
     await db.insert(wasteEntriesTable).values({
       userId: userId || "demo-user",
       category: session.category,
@@ -96,14 +120,29 @@ router.post("/verify", async (req, res) => {
   res.json({
     verified: true,
     pointsAwarded,
-    totalPoints: 750 + pointsAwarded,
+    totalPoints,
     message: "Waste disposal verified. Green points added! Thank you for segregating responsibly.",
     badge: pointsAwarded > 25 ? "Recycling Champion" : null,
   });
 });
 
 router.get("/history", async (req, res) => {
-  const entries = await db.select().from(wasteEntriesTable).orderBy(desc(wasteEntriesTable.verifiedAt)).limit(20);
+  const parsed = GetWasteHistoryQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: "Invalid request" });
+    return;
+  }
+
+  const { userId } = parsed.data;
+  const baseQuery = db
+    .select()
+    .from(wasteEntriesTable)
+    .orderBy(desc(wasteEntriesTable.verifiedAt))
+    .limit(20);
+
+  const entries = userId
+    ? await baseQuery.where(eq(wasteEntriesTable.userId, userId))
+    : await baseQuery;
   const mockHistory = [
     { id: "h1", userId: "demo-user", category: "plastic", itemName: "Plastic Bottle", pointsEarned: 15, verifiedAt: new Date(Date.now() - 86400000).toISOString(), date: new Date(Date.now() - 86400000).toDateString() },
     { id: "h2", userId: "demo-user", category: "organic", itemName: "Food Waste", pointsEarned: 10, verifiedAt: new Date(Date.now() - 172800000).toISOString(), date: new Date(Date.now() - 172800000).toDateString() },
@@ -120,7 +159,7 @@ router.get("/history", async (req, res) => {
     verifiedAt: e.verifiedAt.toISOString(),
     date: e.verifiedAt.toDateString(),
   }));
-  res.json([...dbEntries, ...mockHistory]);
+  res.json(userId ? dbEntries : [...dbEntries, ...mockHistory]);
 });
 
 export default router;

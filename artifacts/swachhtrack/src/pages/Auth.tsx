@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth, MOCK_USER } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { login as apiLogin, signup as apiSignup } from "@workspace/api-client-react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -50,39 +51,52 @@ export default function Auth() {
 
   const onLoginSubmit = async (data: LoginForm) => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      login(MOCK_USER, "mock-jwt-token-123");
+    try {
+      const result = await apiLogin({ email: data.email, password: data.password });
+      login(result.user, result.token);
       toast({
         title: "Welcome back!",
         description: "Successfully logged into SwachhTrack.",
       });
       setLocation("/dashboard");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      toast({
+        title: "Login failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const onSignupSubmit = async (data: SignupForm) => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      const newUser = {
-        ...MOCK_USER,
+    try {
+      const result = await apiSignup({
         name: data.name,
         email: data.email,
         phone: data.phone,
+        password: data.password,
         city: data.city,
-        greenPoints: 0,
-        level: "Eco Beginner"
-      };
-      login(newUser, "mock-jwt-token-456");
+      });
+      login(result.user, result.token);
       toast({
         title: "Account created!",
         description: "Welcome to SwachhTrack. Let's start recycling.",
       });
       setLocation("/dashboard");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Signup failed";
+      toast({
+        title: "Signup failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (

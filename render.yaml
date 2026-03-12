@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: swachhtrack
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: PORT
+        value: "3001"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: swachhtrack-db
+          property: connectionString
+      - key: HF_WASTE_MODEL
+        value: prithivMLmods/Augmented-Waste-Classifier-SigLIP2
+      - key: HF_FAKE_IMAGE_MODEL
+        value: capcheck/ai-image-detection
+      - key: HF_FAKE_IMAGE_THRESHOLD
+        value: "0.8"
+
+databases:
+  - name: swachhtrack-db
+    plan: free
+

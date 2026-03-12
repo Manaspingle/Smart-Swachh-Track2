@@ -1,4 +1,8 @@
 import { Router, type IRouter } from "express";
+import { GetRewardPointsQueryParams } from "@workspace/api-zod";
+import { db } from "@workspace/db";
+import { usersTable, wasteEntriesTable } from "@workspace/db/schema";
+import { and, count, eq, gt, gte, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -27,15 +31,76 @@ const allBadges = [
 ];
 
 router.get("/points", (req, res) => {
-  res.json({
-    userId: "demo-user",
-    greenPoints: 750,
-    level: "Recycling Champion",
-    nextLevelPoints: 1000,
-    rank: 4,
-    totalUsers: 12450,
-    weeklyPoints: 125,
-    monthlyPoints: 380,
+  void (async () => {
+    const parsed = GetRewardPointsQueryParams.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "validation_error", message: "Invalid request" });
+      return;
+    }
+
+    const userId = parsed.data.userId ?? "demo-user";
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+
+    if (!user) {
+      res.json({
+        userId,
+        greenPoints: 0,
+        level: "Eco Beginner",
+        nextLevelPoints: 100,
+        rank: 0,
+        totalUsers: 0,
+        weeklyPoints: 0,
+        monthlyPoints: 0,
+      });
+      return;
+    }
+
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - 7);
+    const monthStart = new Date(now);
+    monthStart.setDate(now.getDate() - 30);
+
+    const weekly = await db
+      .select({ sum: sql<number>`coalesce(sum(${wasteEntriesTable.pointsEarned}), 0)` })
+      .from(wasteEntriesTable)
+      .where(and(eq(wasteEntriesTable.userId, userId), gte(wasteEntriesTable.verifiedAt, weekStart)));
+
+    const monthly = await db
+      .select({ sum: sql<number>`coalesce(sum(${wasteEntriesTable.pointsEarned}), 0)` })
+      .from(wasteEntriesTable)
+      .where(and(eq(wasteEntriesTable.userId, userId), gte(wasteEntriesTable.verifiedAt, monthStart)));
+
+    const totalUsersResult = await db.select({ c: count() }).from(usersTable);
+    const totalUsers = totalUsersResult[0]?.c ?? 0;
+
+    // Rank is approximate: count users with more points + 1
+    const better = await db
+      .select({ c: count() })
+      .from(usersTable)
+      .where(gt(usersTable.greenPoints, user.greenPoints));
+    const rank = (better[0]?.c ?? 0) + 1;
+
+    const nextLevelPoints =
+      user.greenPoints >= 2000 ? 2000 :
+      user.greenPoints >= 1000 ? 2000 :
+      user.greenPoints >= 500 ? 1000 :
+      user.greenPoints >= 100 ? 500 :
+      100;
+
+    res.json({
+      userId,
+      greenPoints: user.greenPoints,
+      level: user.level,
+      nextLevelPoints,
+      rank,
+      totalUsers,
+      weeklyPoints: weekly[0]?.sum ?? 0,
+      monthlyPoints: monthly[0]?.sum ?? 0,
+    });
+  })().catch((err: unknown) => {
+    console.error(err);
+    res.status(500).json({ error: "internal_error", message: "Failed to load reward points" });
   });
 });
 

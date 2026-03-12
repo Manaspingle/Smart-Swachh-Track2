@@ -2,11 +2,11 @@ import { useState, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Upload, Camera, CheckCircle2, AlertCircle, MapPin, X, Loader2 } from "lucide-react";
+import { Upload, Camera, CheckCircle2, AlertCircle, MapPin, X, Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { ClassificationResultCategory } from "@workspace/api-client-react";
+import { classifyWaste, verifyWasteDisposal, type ClassificationResult, type VerificationResult } from "@workspace/api-client-react";
 
 export default function Classify() {
   const { user, updatePoints } = useAuth();
@@ -18,19 +18,12 @@ export default function Classify() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [classificationResult, setClassificationResult] = useState<ClassificationResult | null>(null);
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
-
-  // Mock Result Data
-  const classificationResult = {
-    category: "plastic" as ClassificationResultCategory,
-    itemName: "Crushed Water Bottle",
-    confidence: 94.2,
-    binColor: "Blue Bin",
-    disposalInstructions: "Ensure it is completely empty. Crush it to save space before throwing it in the blue dry waste bin.",
-    points: 15
-  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isVerification = false) => {
     const file = e.target.files?.[0];
@@ -48,14 +41,20 @@ export default function Classify() {
     reader.readAsDataURL(file);
   };
 
-  const analyzeWaste = () => {
+  const analyzeWaste = async () => {
     if (!wasteImage) return;
     setIsAnalyzing(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsAnalyzing(false);
+    try {
+      const result = await classifyWaste({ imageBase64: wasteImage, userId: user?.id });
+      setClassificationResult(result);
+      setSessionId(result.sessionId);
       setStep(2);
-    }, 2000);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to classify image";
+      toast({ title: "Classification failed", description: message, variant: "destructive" });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const getLocation = () => {
@@ -69,15 +68,27 @@ export default function Classify() {
     }, 1000);
   };
 
-  const verifyDisposal = () => {
-    if (!binImage) return;
+  const verifyDisposal = async () => {
+    if (!binImage || !sessionId) return;
     setIsVerifying(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsVerifying(false);
+    try {
+      const result = await verifyWasteDisposal({
+        sessionId,
+        imageBase64: binImage,
+        userId: user?.id,
+        latitude: location?.lat,
+        longitude: location?.lng,
+      });
+      setVerificationResult(result);
       setStep(3);
-      updatePoints(classificationResult.points);
-    }, 2000);
+      updatePoints(result.pointsAwarded);
+      toast({ title: "Verified", description: result.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Verification failed";
+      toast({ title: "Verification failed", description: message, variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const resetFlow = () => {
@@ -85,6 +96,9 @@ export default function Classify() {
     setWasteImage(null);
     setBinImage(null);
     setLocation(null);
+    setSessionId(null);
+    setClassificationResult(null);
+    setVerificationResult(null);
   };
 
   return (
@@ -195,22 +209,22 @@ export default function Classify() {
                     <img src={wasteImage!} alt="Analyzed waste" className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2 bg-background/90 backdrop-blur text-xs font-bold px-2 py-1 rounded-md border border-border shadow-sm flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3 text-green-500" />
-                      {classificationResult.confidence}% Match
+                      {classificationResult ? `${Math.round(classificationResult.confidence * 100)}% Match` : "—"}
                     </div>
                   </div>
                   <div className="p-6 md:w-2/3">
                     <div className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase mb-3 bg-blue-100 text-blue-700">
-                      {classificationResult.category} Waste
+                      {classificationResult ? `${classificationResult.category} Waste` : "—"}
                     </div>
-                    <h2 className="text-2xl font-display font-bold mb-2">{classificationResult.itemName}</h2>
+                    <h2 className="text-2xl font-display font-bold mb-2">{classificationResult?.itemName ?? "—"}</h2>
                     
                     <div className="flex items-start gap-3 bg-white p-4 rounded-xl border border-blue-100 shadow-sm mt-4">
                       <div className="w-12 h-12 rounded-full bg-blue-100 flex-shrink-0 flex items-center justify-center">
                         <Trash2 className="w-6 h-6 text-blue-600" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-foreground">Throw in {classificationResult.binColor}</h4>
-                        <p className="text-sm text-muted-foreground mt-1">{classificationResult.disposalInstructions}</p>
+                        <h4 className="font-bold text-foreground">Throw in {classificationResult?.binColor ?? "—"}</h4>
+                        <p className="text-sm text-muted-foreground mt-1">{classificationResult?.disposalInstructions ?? "—"}</p>
                       </div>
                     </div>
                   </div>
