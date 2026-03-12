@@ -1,0 +1,26 @@
+packages:
+  "recharts": "For interactive charts on the citizen and municipal dashboards"
+  "framer-motion": "For page transitions, list animations, and micro-interactions"
+  "@hookform/resolvers": "For validating form inputs using Zod with react-hook-form"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility function to efficiently merge Tailwind CSS classes"
+  "date-fns": "For formatting dates in history and schedules"
+
+images:
+  - path: "artifacts/swachhtrack/public/images/hero-bg.png"
+    description: "Abstract, modern, eco-friendly background with soft green and blue gradients, subtle leaf patterns, and geometric smart city elements. Light and airy."
+    aspect_ratio: "16:9"
+  - path: "artifacts/swachhtrack/public/images/map-placeholder.png"
+    description: "Stylized, minimalist map graphic in soft green and grey tones, looking like a smart city interface with subtle glowing dots."
+    aspect_ratio: "16:9"
+  - path: "artifacts/swachhtrack/public/images/logo.png"
+    description: "Minimalist, modern logo mark combining a green leaf and a recycling arrows symbol, clean lines, transparent background."
+    aspect_ratio: "1:1"
+  - path: "artifacts/swachhtrack/public/images/auth-bg.png"
+    description: "Vertical abstract illustration of a clean, futuristic green city with wind turbines and recycling bins, soft 3d style."
+    aspect_ratio: "9:16"
+
+notes:
+  - Auth is simulated using localStorage to store a mock user profile and token.
+  - API endpoints are expected to follow the generated OpenAPI client format.
+  - Components fall back to hardcoded mock data if API requests fail to ensure the prototype is always visually complete.

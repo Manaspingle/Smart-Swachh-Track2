@@ -1,22 +1,37 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: SwachhTrack Smart Waste Management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: waste
+    description: Waste classification and verification
+  - name: rewards
+    description: Green points and gamification
+  - name: reports
+    description: Waste issue reporting
+  - name: analytics
+    description: Municipal analytics
+  - name: schedule
+    description: Pickup schedules
+  - name: centers
+    description: Recycling centers
+  - name: challenges
+    description: Eco challenges
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +39,330 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: User signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /waste/classify:
+    post:
+      operationId: classifyWaste
+      tags: [waste]
+      summary: Classify waste from uploaded image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassifyWasteRequest"
+      responses:
+        "200":
+          description: Classification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassificationResult"
+
+  /waste/verify:
+    post:
+      operationId: verifyWasteDisposal
+      tags: [waste]
+      summary: Verify waste disposal with second image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyDisposalRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationResult"
+
+  /waste/history:
+    get:
+      operationId: getWasteHistory
+      tags: [waste]
+      summary: Get user waste disposal history
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Waste history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WasteEntry"
+
+  /rewards/points:
+    get:
+      operationId: getRewardPoints
+      tags: [rewards]
+      summary: Get user reward points and level
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Reward info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardInfo"
+
+  /rewards/leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [rewards]
+      summary: Get community leaderboard
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /rewards/badges:
+    get:
+      operationId: getBadges
+      tags: [rewards]
+      summary: Get user badges
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Badges list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Badge"
+
+  /reports:
+    post:
+      operationId: submitReport
+      tags: [reports]
+      summary: Submit waste issue report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WasteReportRequest"
+      responses:
+        "201":
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WasteReport"
+    get:
+      operationId: getReports
+      tags: [reports]
+      summary: Get waste issue reports
+      responses:
+        "200":
+          description: Reports list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WasteReport"
+
+  /analytics/municipal:
+    get:
+      operationId: getMunicipalAnalytics
+      tags: [analytics]
+      summary: Get municipal waste analytics
+      responses:
+        "200":
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MunicipalAnalytics"
+
+  /analytics/dashboard:
+    get:
+      operationId: getCitizenDashboard
+      tags: [analytics]
+      summary: Get citizen dashboard stats
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CitizenDashboard"
+
+  /schedule:
+    get:
+      operationId: getPickupSchedule
+      tags: [schedule]
+      summary: Get waste pickup schedule
+      parameters:
+        - in: query
+          name: city
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Schedule list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PickupSchedule"
+
+  /centers:
+    get:
+      operationId: getRecyclingCenters
+      tags: [centers]
+      summary: Get nearby recycling centers
+      parameters:
+        - in: query
+          name: city
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Centers list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecyclingCenter"
+
+  /challenges/daily:
+    get:
+      operationId: getDailyChallenges
+      tags: [challenges]
+      summary: Get today's eco challenges
+      responses:
+        "200":
+          description: Challenges list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EcoChallenge"
+
+  /challenges/complete:
+    post:
+      operationId: completeChallenge
+      tags: [challenges]
+      summary: Mark a challenge as complete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteChallengeRequest"
+      responses:
+        "200":
+          description: Challenge completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompleteChallengeResponse"
+
+  /impact:
+    get:
+      operationId: getEnvironmentalImpact
+      tags: [analytics]
+      summary: Get user environmental impact stats
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Impact data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentalImpact"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +370,496 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required: [error, message]
+
+    SignupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        password:
+          type: string
+        city:
+          type: string
+      required: [name, email, phone, password, city]
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserProfile"
+      required: [token, user]
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        city:
+          type: string
+        greenPoints:
+          type: number
+        level:
+          type: string
+        joinedAt:
+          type: string
+      required: [id, name, email, phone, city, greenPoints, level, joinedAt]
+
+    ClassifyWasteRequest:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+        userId:
+          type: string
+      required: [imageBase64]
+
+    ClassificationResult:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        category:
+          type: string
+          enum: [organic, plastic, metal, glass, ewaste, paper, other]
+        itemName:
+          type: string
+        confidence:
+          type: number
+        disposalInstructions:
+          type: string
+        binColor:
+          type: string
+        tips:
+          type: array
+          items:
+            type: string
+      required: [sessionId, category, itemName, confidence, disposalInstructions, binColor, tips]
+
+    VerifyDisposalRequest:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        imageBase64:
+          type: string
+        userId:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+      required: [sessionId, imageBase64]
+
+    VerificationResult:
+      type: object
+      properties:
+        verified:
+          type: boolean
+        pointsAwarded:
+          type: number
+        totalPoints:
+          type: number
+        message:
+          type: string
+        badge:
+          type: string
+          nullable: true
+      required: [verified, pointsAwarded, totalPoints, message]
+
+    WasteEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        category:
+          type: string
+        itemName:
+          type: string
+        pointsEarned:
+          type: number
+        verifiedAt:
+          type: string
+        date:
+          type: string
+      required: [id, userId, category, itemName, pointsEarned, verifiedAt, date]
+
+    RewardInfo:
+      type: object
+      properties:
+        userId:
+          type: string
+        greenPoints:
+          type: number
+        level:
+          type: string
+        nextLevelPoints:
+          type: number
+        rank:
+          type: number
+        totalUsers:
+          type: number
+        weeklyPoints:
+          type: number
+        monthlyPoints:
+          type: number
+      required: [userId, greenPoints, level, nextLevelPoints, rank, totalUsers, weeklyPoints, monthlyPoints]
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: number
+        userId:
+          type: string
+        name:
+          type: string
+        city:
+          type: string
+        greenPoints:
+          type: number
+        level:
+          type: string
+        itemsRecycled:
+          type: number
+      required: [rank, userId, name, city, greenPoints, level, itemsRecycled]
+
+    Badge:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        earnedAt:
+          type: string
+          nullable: true
+        unlocked:
+          type: boolean
+        requirement:
+          type: string
+      required: [id, name, description, icon, unlocked, requirement]
+
+    WasteReportRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        location:
+          type: string
+        description:
+          type: string
+        imageBase64:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+      required: [location, description]
+
+    WasteReport:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+          nullable: true
+        location:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, resolved]
+        submittedAt:
+          type: string
+        resolvedAt:
+          type: string
+          nullable: true
+      required: [id, location, description, status, submittedAt]
+
+    MunicipalAnalytics:
+      type: object
+      properties:
+        totalWasteCollected:
+          type: number
+        segregationRate:
+          type: number
+        activeUsers:
+          type: number
+        totalReports:
+          type: number
+        areaWiseData:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaWiseData"
+        wasteTypeDistribution:
+          type: array
+          items:
+            $ref: "#/components/schemas/WasteTypeData"
+        weeklyTrend:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyTrend"
+        topCommunities:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityData"
+      required: [totalWasteCollected, segregationRate, activeUsers, totalReports, areaWiseData, wasteTypeDistribution, weeklyTrend, topCommunities]
+
+    AreaWiseData:
+      type: object
+      properties:
+        area:
+          type: string
+        segregationRate:
+          type: number
+        totalWaste:
+          type: number
+        compliance:
+          type: string
+          enum: [high, medium, low]
+      required: [area, segregationRate, totalWaste, compliance]
+
+    WasteTypeData:
+      type: object
+      properties:
+        category:
+          type: string
+        percentage:
+          type: number
+        amount:
+          type: number
+      required: [category, percentage, amount]
+
+    WeeklyTrend:
+      type: object
+      properties:
+        day:
+          type: string
+        organic:
+          type: number
+        plastic:
+          type: number
+        metal:
+          type: number
+        glass:
+          type: number
+        ewaste:
+          type: number
+      required: [day, organic, plastic, metal, glass, ewaste]
+
+    CommunityData:
+      type: object
+      properties:
+        name:
+          type: string
+        area:
+          type: string
+        score:
+          type: number
+        members:
+          type: number
+        rank:
+          type: number
+      required: [name, area, score, members, rank]
+
+    CitizenDashboard:
+      type: object
+      properties:
+        totalPoints:
+          type: number
+        itemsSegregated:
+          type: number
+        ecoScore:
+          type: number
+        rank:
+          type: number
+        weeklyActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyActivity"
+        categoryBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryCount"
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/WasteEntry"
+      required: [totalPoints, itemsSegregated, ecoScore, rank, weeklyActivity, categoryBreakdown, recentActivity]
+
+    DailyActivity:
+      type: object
+      properties:
+        date:
+          type: string
+        points:
+          type: number
+        items:
+          type: number
+      required: [date, points, items]
+
+    CategoryCount:
+      type: object
+      properties:
+        category:
+          type: string
+        count:
+          type: number
+        color:
+          type: string
+      required: [category, count, color]
+
+    PickupSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+        wasteType:
+          type: string
+        day:
+          type: string
+        time:
+          type: string
+        frequency:
+          type: string
+        areas:
+          type: array
+          items:
+            type: string
+        color:
+          type: string
+        icon:
+          type: string
+        notes:
+          type: string
+          nullable: true
+      required: [id, wasteType, day, time, frequency, areas, color, icon]
+
+    RecyclingCenter:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        acceptedTypes:
+          type: array
+          items:
+            type: string
+        timings:
+          type: string
+        phone:
+          type: string
+        distance:
+          type: string
+          nullable: true
+      required: [id, name, address, city, latitude, longitude, acceptedTypes, timings, phone]
+
+    EcoChallenge:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        points:
+          type: number
+        category:
+          type: string
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        completed:
+          type: boolean
+        deadline:
+          type: string
+      required: [id, title, description, points, category, difficulty, completed, deadline]
+
+    CompleteChallengeRequest:
+      type: object
+      properties:
+        challengeId:
+          type: string
+        userId:
+          type: string
+      required: [challengeId]
+
+    CompleteChallengeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        pointsAwarded:
+          type: number
+        message:
+          type: string
+      required: [success, pointsAwarded, message]
+
+    EnvironmentalImpact:
+      type: object
+      properties:
+        wasteDiverted:
+          type: number
+        plasticRecycled:
+          type: number
+        co2Reduced:
+          type: number
+        treesEquivalent:
+          type: number
+        waterSaved:
+          type: number
+        energySaved:
+          type: number
+      required: [wasteDiverted, plasticRecycled, co2Reduced, treesEquivalent, waterSaved, energySaved]
