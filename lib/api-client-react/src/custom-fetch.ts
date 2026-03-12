@@ -26,9 +26,19 @@ function isUrl(input: RequestInfo | URL): input is URL {
 }
 
 function resolveUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  if (isUrl(input)) return input.toString();
-  return input.url;
+  const raw = typeof input === "string" ? input : isUrl(input) ? input.toString() : input.url;
+
+  // Support hosting the frontend on a different origin (e.g. GitHub Pages).
+  // If an API base is provided, prefix relative `/api/*` calls.
+  const apiBase =
+    (globalThis as unknown as { __API_BASE_URL__?: string }).__API_BASE_URL__ ??
+    (typeof process !== "undefined" ? (process.env as Record<string, string | undefined>)["VITE_API_BASE_URL"] : undefined);
+
+  if (apiBase && raw.startsWith("/api/")) {
+    return `${apiBase.replace(/\/$/, "")}${raw}`;
+  }
+
+  return raw;
 }
 
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {

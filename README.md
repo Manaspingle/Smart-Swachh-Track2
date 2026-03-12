@@ -93,27 +93,29 @@ pnpm -C artifacts/swachhtrack dev
 
 > Note: the `Auth` page now calls the real backend endpoints (`/api/auth/signup`, `/api/auth/login`).
 
-## Deployment (single-service)
+## Deployment (Vercel)
 
-The API server can also serve the frontend in production (one deployable web service + one Postgres database).
+This repo is configured to deploy **both**:
 
-- **Build**: build frontend (`artifacts/swachhtrack`) and backend (`artifacts/api-server`)
-- **Run**: start the API server with `NODE_ENV=production` (it will serve the built UI)
+- the **frontend** (static build from `artifacts/swachhtrack/dist/public`)
+- the **API** (serverless function in `api/index.ts`, mounting the existing Express routes)
 
-### Deploy on Render (recommended)
+via `vercel.json`.
 
-This repo includes `render.yaml` (Blueprint) and a `Dockerfile`.
+### Steps
 
-- Push this repo to GitHub.
-- In Render, choose **New → Blueprint** and select your repo.
-- Render will create:
-  - a web service (Docker)
-  - a Postgres database
-- After deploy finishes, your **deployable link** is the Render web service URL (shown in the dashboard).
+1. In Vercel, click **Add New → Project** and import your GitHub repo.
+2. In Vercel → **Project Settings → Environment Variables**, set:
+   - `DATABASE_URL` (your Postgres connection string; use a hosted Postgres like Neon/Supabase)
+   - `JWT_SECRET` (any long random string)
+   - `HF_API_TOKEN` (optional, enables Hugging Face classification + fake-image detection)
+3. Deploy.
+4. Create DB tables (one-time) by running Drizzle push against your hosted DB:
 
-Environment variables required at runtime:
+```powershell
+$env:DATABASE_URL="<YOUR_HOSTED_DATABASE_URL>"
+pnpm -C .\lib\db push
+```
 
-- `DATABASE_URL` (Render sets this automatically via the Blueprint)
-- `JWT_SECRET` (Render generates this via the Blueprint)
-- `HF_API_TOKEN` (set this in Render to enable ML classification + fake-image detection)
+Your web app link is the Vercel deployment URL shown in the Vercel dashboard.
 
